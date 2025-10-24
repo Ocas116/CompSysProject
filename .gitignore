@@ -10,7 +10,13 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
-
+build
+!.vscode/*
+# OS-specific junk
+.DS_Store
+Thumbs.db
+# Doxygen output
+libs/TKJHAT/docs/out/
 # CLion
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
