@@ -11,10 +11,12 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 build
+.vscode
 !.vscode/*
 # OS-specific junk
 .DS_Store
 Thumbs.db
+JTK_example
 # Doxygen output
 libs/TKJHAT/docs/out/
 # CLion
