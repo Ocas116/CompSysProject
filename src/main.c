@@ -38,23 +38,35 @@ void reading_input(char first){
         if(input == ' ') flag++;
         else flag = 0;
     }
+    //if sending to state machine
+    printf("%s", tx_buffer);
 }
 
 void idle_state(){
     // if(wifi_connect()) printf("connection failed \n");
     while(1){
+
+        if(gpio_get(SW2_PIN)) set_calib_IMU();
+
         char input = read_IMU();
         if(input){
             programState = reading;
             reading_input(input);
-        } 
+        }
+        input = (char)getchar_timeout_us(0);
+        if(input){
+            programState = receiving;
+            int i = 0;
+            while(input){
+                rx_buffer[i] = input;
+                i++;
+                input = (char)getchar_timeout_us(0);
+            }
+        }
     }
-    
-}
-
+    }
 int main(){
     stdio_init_all();
-
     init_hat_sdk();
     load_calib_IMU();
     idle_state();

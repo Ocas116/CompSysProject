@@ -1,6 +1,6 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
-// #include "lwip/netif.h"
+#include "lwip/netif.h"
 #include "wifi.h"
 #define WIFI_USER ""
 #define WIFI_PASS ""
@@ -8,7 +8,7 @@
 #define PORT 4242
 
 
-
+// used AI
 static inline int wifi_connect(){
     if (cyw43_arch_init()) {
         printf("Wi-Fi init failed\n");
@@ -21,6 +21,6 @@ static inline int wifi_connect(){
         printf("Wi-Fi connect failed\n");
         return 1;
     }
-    // printf("Connected! IP: %s\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
+    printf("Connected! IP: %s\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
     return 0;
 }
