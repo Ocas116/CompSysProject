@@ -1,6 +1,11 @@
 #ifndef IMU
 #define IMU
+/*
 
+@brief 
+@parameters
+@return 
+*/
 
 #define IMU_ACCEL_CONFIG    0x21
 #define IMU_WOM_X_THR        0x4A
