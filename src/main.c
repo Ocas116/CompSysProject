@@ -19,7 +19,7 @@ enum state {
     reading,
     transmitting,
     receiving,
-    connecting
+    connecting,
 };
 enum state programState = idle;
 
