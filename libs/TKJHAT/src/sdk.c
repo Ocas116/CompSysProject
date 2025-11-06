@@ -735,7 +735,7 @@ void stop_hdc2021() {
 
 float aRes, gRes;      // scale resolutions per LSB for the sensors
 
-static int icm_i2c_write_byte(uint8_t reg, uint8_t value) {
+int icm_i2c_write_byte(uint8_t reg, uint8_t value) {
     uint8_t buf[2] = { reg, value };
     //printf("Before writing to i2c reg:0x%x, val:0x%x\n", reg, value);
     int result = i2c_write_blocking(i2c_default, ICM42670_I2C_ADDRESS, buf, 2, false);

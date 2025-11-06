@@ -24,7 +24,7 @@ enum state {
 enum state programState = idle;
 
 
-
+int flag = 0;
 
 
 void reading_input(char first){
@@ -68,7 +68,7 @@ void idle_state(){
 int main(){
     stdio_init_all();
     init_hat_sdk();
-    load_calib_IMU();
+    IMU_init();
     idle_state();
     return 0;
 }

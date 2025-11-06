@@ -1,6 +1,9 @@
 #ifndef WIFI
 #define WIFI
 
-
-static inline int wifi_connect(void);
+/**
+ * @brief
+ * @return
+ */
+static inline int wifi_connect();
 #endif /* wifi.h */

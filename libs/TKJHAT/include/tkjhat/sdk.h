@@ -208,6 +208,8 @@ SOFTWARE.
 #define ICM42670_GYRO_MODE_LN                   0x0C
 #define ICM42670_SENSOR_DATA_START_REG          0x09
 
+/* Added temporarily..? */
+int icm_i2c_write_byte(uint8_t reg, uint8_t value);
 /* =========================
  *  Public function prototypes
  * ========================= */
@@ -467,6 +469,8 @@ int init_microphone_sampling(void);
  * Call again later with ::init_microphone_sampling() to resume.
  */
 void end_microphone_sampling(void);
+
+
 
 /**
  * @brief Register a callback for new microphone samples.
