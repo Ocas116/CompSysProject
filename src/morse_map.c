@@ -16,6 +16,7 @@ MorseMap morse_table[] = {
     {"---..", '8'}, {"----.", '9'},
 };
 
+const int morse_table_size = sizeof(morse_table) / sizeof(MorseMap);
 
 
 

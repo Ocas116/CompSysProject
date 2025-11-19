@@ -7,5 +7,6 @@ typedef struct {
 } MorseMap;
 
 extern MorseMap morse_table[];
+extern const int morse_table_size;
 
 #endif /* morse_map.h */
