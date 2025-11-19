@@ -67,6 +67,7 @@ target_sources (${MAIN_TARGET}
         src/wifi.c
         src/imu.c 
         src/morse_map.c 
+        src/morse_utils.c
 )
 target_include_directories(${MAIN_TARGET} PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
