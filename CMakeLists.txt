@@ -41,7 +41,7 @@ set(PICO_BOARD pico_w CACHE STRING "Board type")
 
 include(pico_sdk_import.cmake)
 
-project(morseproj C CXX ASM)
+project(MORSE_PROJ C CXX ASM)
 
 
 pico_sdk_init()

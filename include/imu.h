@@ -25,7 +25,7 @@
  */
 void IMU_LP_mode();
 
-
+void test_write();
 /**
  * @brief 
  * Loads threshold calibration values from flash
@@ -58,17 +58,16 @@ char read_IMU();
  * Parses the IMU inputs for the strongest acceleration direction
  * @param ax
  * float value for the maxmimum accelerator value for x
- * @param ay
- * float value for the maxmimum accelerator value for y
  * @param az
  * float value for the maxmimum accelerator value for z
  * 
  * @return 
  * Char depending on the strongest input
  */
-char parseIMU(float *ax,float  *ay,float  *az);
+char parseIMU(float ax, float  az);
 
 void motion_handler(uint gpio, uint32_t events);
 void IMU_init();
 void IMU_LP_init();
+void delay_ms(uint32_t ms);
 #endif /* IMU.h */
