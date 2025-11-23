@@ -77,7 +77,7 @@ void task_poll_serial(void *pvParameters){
             ProgramEvent event = {EVENT_SYMBOL_SERIAL_RECEIVED, serial_char};
             xQueueSend(eventQueue, &event, portMAX_DELAY);
         }
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
  
@@ -114,6 +114,7 @@ void task_write_serial(void *pvParameters){
         printf("%s", tx_buffer);
         memset(tx_buffer, 0, sizeof(tx_buffer));
         tx_buffer_index = 0;
+        led_blink_eom();
     }
 }
  
@@ -154,9 +155,6 @@ void task_stateMachine(void *pvParameters){
                             state = STATE_SENDING;
                             // notifies the write to serial task
                             xTaskNotifyGive(write_serial_handle);
- 
-
- 
                             state = STATE_IDLE;
                         }
                     }
@@ -175,7 +173,6 @@ void task_stateMachine(void *pvParameters){
                         if(check_for_eom(rx_buffer, rx_buffer_index)){
                             // whatever we need to do after eom for serial
                             state = STATE_IDLE;
-                            printf("%s ---  %s\n", rx_buffer, morse_to_text(rx_buffer));
                             // resets rx buffer
                             memset(rx_buffer, 0, sizeof(rx_buffer));
                             rx_buffer_index = 0;

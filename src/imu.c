@@ -56,7 +56,7 @@ int set_calib_IMU(){
     if(ay_threshold < ax) ay_threshold = ay;
     if(ax_threshold < ax) ax_threshold = ax;
     if(az_threshold < az) az_threshold = az;
-    delay_ms(500);
+    delay_ms(100);
     if(gpio_get(SW2_PIN)) flag = 1;
     }
     delay_ms(1000);
