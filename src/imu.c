@@ -16,7 +16,7 @@
 
 #define CALIB_VALS_OFFSET (1560 * 1024)
 
-static float ax_low_threshold = -1.5, ax_high_threshold = 1.5, az_threshold = -0.5;
+static float ax_threshold = 1.0, ay_threshold = 1.0, az_threshold = 1.1;
 
 
 typedef struct {
@@ -27,8 +27,8 @@ void __not_in_flash_func(write_calibration_to_flash)(calib_vals *data);
 
 void load_calib_IMU(){
     const calib_vals *data = (const calib_vals *)(XIP_BASE + CALIB_VALS_OFFSET);
-    ax_low_threshold = data->a;
-    ax_high_threshold = data->b;
+    ay_threshold = data->a;
+    ax_threshold = data->b;
     az_threshold = data->c;
 }
 void test_write(){
@@ -52,11 +52,10 @@ int set_calib_IMU(){
        //printf("Error reading sensor data");
        return 1;
     }
-    cyw43_delay_ms(100);
-    printf("calibrating... \n max vals min %d,max %d,az %d\n", (int)(ax_low_threshold*1000), (int)(ax_high_threshold*1000), (int)(az_threshold*1000));
-    if(ax_low_threshold > ax) ax_low_threshold = ax;
-    if(ax_high_threshold < ax) ax_high_threshold = ax;
-    if(az_threshold > az) az_threshold = az;
+    printf("calibrating... \n max vals min %d,max %d,az %d\n", (int)(ay_threshold*1000), (int)(ax_threshold*1000), (int)(az_threshold*1000));
+    if(ay_threshold < ax) ay_threshold = ay;
+    if(ax_threshold < ax) ax_threshold = ax;
+    if(az_threshold < az) az_threshold = az;
     if(gpio_get(SW2_PIN))
     flag = 1;
     }
@@ -69,56 +68,100 @@ char read_IMU(){
        printf("Error reading sensor data");
         return 'X'; 
     }
-    if(ax < ax_low_threshold || ax > ax_high_threshold || az < az_threshold)
-        return parseIMU(ax, az);
+    if(ay > ay_threshold || ax > ax_threshold || az > az_threshold)
+        return parseIMU(ax, ay, az);
     return 'X';
     }
 
-char parseIMU(float ax,float  az){
+char parseIMU(float ax, float ay, float  az){
+    if(ax > ay && ax > az) return '.';
+    // acceleration in y = -
+    else if(ay > az) return '-';
+    // acceleration in z = space
+    else return ' ';
+
+    /*
     if(az < -abs(ax)) return '_';
     if(ax < 0) return '.';
     return '-';
+    */
     
 }
 void IMU_init(){
-    if(!init_ICM42670()){
-        printf("Error intializing");
-        return;
-    } 
-    load_calib_IMU();
-    IMU_LP_init();
+    printf("Initializing IMU\n");
+    // load_calib_IMU();
     gpio_set_dir(ICM42670_INT, GPIO_IN);
-    gpio_pull_down(ICM42670_INT);
+    int ret = init_ICM42670();
+    if(0 > ret){
+        printf("Error intializing %d", ret);
+    } 
+    delay_ms(50);
+    IMU_LP_init();
+    
+    printf("Setting up interrupt\n");
+    gpio_pull_up(ICM42670_INT);
     gpio_set_irq_enabled_with_callback(
     ICM42670_INT,
     GPIO_IRQ_EDGE_RISE,
     true,
-    &motion_handler);
+    motion_handler);
+    
+    printf("Interrupt set up\n");
 }
 void IMU_LP_init(){
-
+    printf("Configuring\n");
     /**
      * Find control registers from this pdf 
      * https://invensense.tdk.com/wp-content/uploads/2021/07/DS-000451-ICM-42670-P-v1.0.pdf
      */
-    icm_i2c_write_byte(ICM42670_PWR_MGMT0_REG, 0x00);
-
-    icm_i2c_write_byte(IMU_WOM_CONFIG, 0b00000001);
-
-    icm_i2c_write_byte(IMU_WOM_X_THR, ax_low_threshold);
-    icm_i2c_write_byte(IMU_WOM_Y_THR, 0xFF);
-    icm_i2c_write_byte(IMU_WOM_Z_THR, az_threshold);
-
-    icm_i2c_write_byte(IMU_SMD_CONFIG, 0b00000111);
-
-    icm_i2c_write_byte(ICM42670_PWR_MGMT0_REG, 0x0F);
+    int ret = 0;
+    uint8_t value;
+    // icm_i2c_write_byte(0x26, 0x03);
+    if(ret < 0) printf("Error writing i2c\n");
+    delay_ms(1000);
+    ret = icm_i2c_write_byte(IMU_INT_CONFIG , 0x02); 
+    if(ret < 0) printf("Error writing i2c int\n");
+    delay_ms(500);
+    ret = icm_i2c_write_byte(IMU_WOM_CONFIG, 0x03);
+    if(ret < 0) printf("Error writing i2c config\n");
+    ret = icm_i2c_write_byte(IMU_INT_SOURCE, 0x07);
+    if(ret < 0) printf("Error writing i2c source\n");
+    delay_ms(50);
+    ret = icm_i2c_write_byte(IMU_WOM_X_THR, 0x50);
+    if(ret < 0) printf("Error writing i2c x\n");
+    busy_wait_ms(50);
+    icm_i2c_read_byte(IMU_WOM_Y_THR, &value);
+    ret = icm_i2c_write_byte(IMU_WOM_Y_THR, 0x50);
+    if(ret < 0) printf("Error writing i2c y\n");
+    busy_wait_ms(200);
     
-    icm_i2c_write_byte(IMU_ACCEL_CONFIG, 0x03);
+    ret = icm_i2c_write_byte(IMU_WOM_Z_THR, 0x50); 
+    if(ret < 0) printf("Error writing i2c z\n");   
+    delay_ms(50);
+    ret = icm_i2c_write_byte(0x24, 0x63); 
+    if(ret < 0) printf("Error writing i2c z\n");   
+    delay_ms(50);
+    
+    ICM42670_start_with_default_values();
+    ICM42670_enable_ultra_low_power_mode();
+    uint8_t status = 0;
+    ret = icm_i2c_read_byte(IMU_INT_STATUS, &status);
+    if(ret < 0) printf("Error reading i2c\n");
+    printf("INT STATUS: 0x%02X\n", status);
+    printf("Success?\n");
 }
-void motion_handler(uint gpio, uint32_t events){
-    read_IMU();
+int count = 0;
+void motion_handler(uint gpio, uint32_t event_Mask){
+    uint8_t status = 0;
+    int ret = icm_i2c_read_byte(IMU_INT_STATUS, &status);
+    if(ret < 0) printf("Error reading i2c\n");
+    printf("INT STATUS: 0x%02X\n", status);
+    delay_ms(500);
+    printf("Interrupt detected from IMU %d\n", count++);
+    
+    //printf("\ninterrupt input: %c\n", read_IMU());
 }
 
 void delay_ms(uint32_t ms){
-    cyw43_delay_ms(ms);
+    busy_wait_ms(ms);
 }

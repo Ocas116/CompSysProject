@@ -1,6 +1,7 @@
 #include "morse_utils.h"
 #include "morse_map.h"
 #include <string.h>
+#include <stdlib.h>
 
 char morse_to_char(const char* code) {
     for (int i = 0; i < morse_table_size; ++i) {

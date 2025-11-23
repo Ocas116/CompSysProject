@@ -8,12 +8,14 @@
 */
 
 #define IMU_ACCEL_CONFIG    0x21
-#define IMU_WOM_X_THR        0x4A
-#define IMU_WOM_Y_THR        0x4B
-#define IMU_WOM_Z_THR        0x4C
-#define IMU_INT_CONFIG       0x14
+#define IMU_WOM_X_THR        0x4B
+#define IMU_WOM_Y_THR        0x4C
+#define IMU_WOM_Z_THR        0x4D
+#define IMU_INT_CONFIG       0x06
 #define IMU_WOM_CONFIG       0x27
-#define IMU_SMD_CONFIG       0x4D
+#define IMU_INT_SOURCE       0x2C
+#define IMU_INT_CONFIG       0x06
+#define IMU_INT_STATUS       0x3B
 
 /**
  * @brief 
@@ -64,7 +66,7 @@ char read_IMU();
  * @return 
  * Char depending on the strongest input
  */
-char parseIMU(float ax, float  az);
+char parseIMU(float ax, float ay, float  az);
 
 void motion_handler(uint gpio, uint32_t events);
 void IMU_init();

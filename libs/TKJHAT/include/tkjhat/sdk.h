@@ -153,7 +153,7 @@ SOFTWARE.
  *  ICM42670
  * ========================= */
 #define ICM42670_I2C_ADDRESS                    0x69
-#define ICM42670_I2C_ADDRESS_ALT                0x69
+#define ICM42670_I2C_ADDRESS_ALT                0x68
 #define ICM42670_REG_WHO_AM_I                   0x75
 #define ICM42670_WHO_AM_I_RESPONSE              0x67
 #define ICM42670_INT_CONFIG                     0x06
@@ -210,6 +210,8 @@ SOFTWARE.
 
 /* Added temporarily..? */
 int icm_i2c_write_byte(uint8_t reg, uint8_t value);
+int icm_i2c_read_byte(uint8_t reg, uint8_t *value);
+int ICM42670_enable_ultra_low_power_mode(void);
 /* =========================
  *  Public function prototypes
  * ========================= */

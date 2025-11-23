@@ -744,7 +744,7 @@ int icm_i2c_write_byte(uint8_t reg, uint8_t value) {
 }
 
 // helper to read a byte from a register
-static int icm_i2c_read_byte(uint8_t reg, uint8_t *value) {
+int icm_i2c_read_byte(uint8_t reg, uint8_t *value) {
     int result = i2c_write_blocking(i2c_default, ICM42670_I2C_ADDRESS, &reg, 1, true);
     if (result != 1) return -1;
     result = i2c_read_blocking(i2c_default, ICM42670_I2C_ADDRESS, value, 1, false);
@@ -811,6 +811,7 @@ int init_ICM42670() {
     icm_soft_reset();
     
     //DETECT ADDRESS FOR AD0 floating pin: 
+    // int address = ICM42670_autodetect_address();
     int address = ICM42670_autodetect_address();
     if (address == -1){
         printf("Address could not be found");
@@ -962,7 +963,7 @@ int ICM42670_start_with_default_values(void) {
 
     // Start accelerometer with defaults (e.g., 100 Hz, ±4 g)
     rc = ICM42670_startAccel(ICM42670_ACCEL_ODR_DEFAULT,
-                             ICM42670_ACCEL_FSR_DEFAULT);
+                             4);
     if (rc != 0) return rc;
 
     // Start gyroscope with defaults (e.g., 100 Hz, ±250 dps)
