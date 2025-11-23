@@ -52,6 +52,70 @@ QueueHandle_t eventQueue;
 /* Prototypes */
 int check_for_eom();
 
+void draw_screen(char *buffer, int len) {
+
+    clear_display();
+
+    int row = 0;
+    int col = 0;
+
+    // 1. draw morse input
+    for (int i = 0; i < len; i++) {
+
+        if (i % 20 == 0 && i != 0) {
+            row += 10;
+            col = 0;
+        }
+
+        char ch[2] = { buffer[i], '\0' };
+        write_text_xy(col, row, ch);
+        col += 6;
+    }
+
+    // if last character is not space, do not translate
+    // if last character is space, translate the morse code
+    if (len == 0 || buffer[len - 1] != ' ')
+        return;
+
+    // 2. tranaslate to text
+    char *translated = morse_to_text(buffer);
+
+    row += 12;
+    col = 0;
+
+    for (int i = 0; translated[i] != '\0'; i++) {
+
+        if (i % 15 == 0 && i != 0) {
+            row += 10;
+            col = 0;
+        }
+
+        char ch2[2] = { translated[i], '\0' };
+        write_text_xy(col, row, ch2);
+        col += 6;
+    }
+}
+
+
+// void task_display(void *pvParameters) {
+//     vTaskDelay(pdMS_TO_TICKS(100));
+
+//     for (;;) {
+//         if (rx_buffer_index > 0) {
+//             draw_screen(rx_buffer, rx_buffer_index);
+//         }
+//         vTaskDelay(pdMS_TO_TICKS(80));
+//     }
+// }
+
+
+// void task_display(void *pvParameters) {
+//     for (;;) {
+//         draw_screen(rx_buffer, rx_buffer_index);
+//         vTaskDelay(pdMS_TO_TICKS(80));
+//     }
+// }
+
 
 // void draw_screen(char * buffer, int len){
 //     clear_display();
@@ -124,6 +188,11 @@ void task_receive(void *pvParameters){
 
             printf("RX: %s\n", rx_buffer);
             led_blink_char(input);
+            
+            // draw ONLY when a morse letter is finished
+            if (input == ' ') {
+                draw_screen(rx_buffer, rx_buffer_index);
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));   // small pause so we don’t hog CPU
@@ -217,32 +286,32 @@ int check_for_eom(char *buffer, int len){
     return 0;
 }
 
-void task_display(void *pvParameters) {
-    vTaskDelay(pdMS_TO_TICKS(100));
+// void task_display(void *pvParameters) {
+//     vTaskDelay(pdMS_TO_TICKS(100));
 
-    for (;;) {
-        // clear_display();
+//     for (;;) {
+//         // clear_display();
 
-        int row = 0;
-        int col = 0;
+//         int row = 0;
+//         int col = 0;
 
-        for (int i = 0; i < rx_buffer_index; i++) {
+//         for (int i = 0; i < rx_buffer_index; i++) {
 
-            // if 15 chars reached, move to next row
-            if (i % 15 == 0 && i != 0) {
-                row += 10;         // move down 10 rows
-                col = 0;
-            }
+//             // if 15 chars reached, move to next row
+//             if (i % 15 == 0 && i != 0) {
+//                 row += 10;         // move down 10 rows
+//                 col = 0;
+//             }
 
-            char ch[2] = { rx_buffer[i], '\0' };
-            write_text_xy(col, row, ch);
+//             char ch[2] = { rx_buffer[i], '\0' };
+//             write_text_xy(col, row, ch);
 
-            col += 6;  // move right (6 pixels per char)
-        }
+//             col += 6;  // move right (6 pixels per char)
+//         }
 
-        vTaskDelay(pdMS_TO_TICKS(80));
-    }
-}
+//         vTaskDelay(pdMS_TO_TICKS(80));
+//     }
+// }
 
 
 // setup function
@@ -251,28 +320,29 @@ int main() {
     init_hat_sdk();
     init_display();
     // IMU_init();
-    init_red_led();
-    led_blink_eom();
+    // init_red_led();
+    // led_blink_eom();
     // might need to enable pullup resistor
-    gpio_init(SW2_PIN);
-    gpio_set_dir(SW2_PIN, GPIO_IN); // set pin as input
+    // gpio_init(SW2_PIN);
+    // gpio_set_dir(SW2_PIN, GPIO_IN); // set pin as input
     // ties pin interrupt to a callback function
-    gpio_set_irq_enabled_with_callback(SW2_PIN, 
-        GPIO_IRQ_EDGE_RISE , // which events trigger the interrupt
-        true,
-        calib_handler // pointer to isr function
-    );
+    // gpio_set_irq_enabled_with_callback(SW2_PIN, 
+    //     GPIO_IRQ_EDGE_RISE , // which events trigger the interrupt
+    //     true,
+    //     calib_handler // pointer to isr function
+    // );
 
     eventQueue = xQueueCreate(10, sizeof(ProgramEvent));
 
     // BaseType_t res_a = xTaskCreate(task_readIMU, "Read IMU Task", TASK_STACK, NULL, 2, &readIMU_handle);
     BaseType_t res_b = xTaskCreate(task_writeSerial, "Write Serial Task", TASK_STACK, NULL, 1, &writeSerial_handle);
-    BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
+    // BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
     BaseType_t res_d = xTaskCreate(task_receive, "Receive Task", TASK_STACK, NULL, 2, &receive_handle);
-    BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
+    // BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
     // BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 2, &poll_handle);
+    // BaseType_t res_display = xTaskCreate(task_display, "Display Task", TASK_STACK, NULL, 1, NULL);
 
-    BaseType_t res_display = xTaskCreate(task_display, "Display Task", TASK_STACK, NULL, 1, NULL);
+    // xTaskCreate(task_display, "Display Task", TASK_STACK, NULL, 1, NULL);
 
     vTaskStartScheduler();
 }
