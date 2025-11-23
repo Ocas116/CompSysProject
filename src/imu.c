@@ -43,8 +43,6 @@ void test_write(){
 }
 
 int set_calib_IMU(){
-    vTaskSuspendAll();
-    uint32_t ints = save_and_disable_interrupts();
     int flag = 0;
     float ax, ay, az, gx, gy, gz, t;
     ax_threshold = 0.5, ay_threshold = 0.5, az_threshold = 1.5;
@@ -52,8 +50,6 @@ int set_calib_IMU(){
     while(!flag){
         if(0 > ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t)){
        printf("Error reading sensor data");
-       restore_interrupts(ints);
-       xTaskResumeAll();
        return 1;
     }
     led_blink_dot();
@@ -64,8 +60,6 @@ int set_calib_IMU(){
     if(gpio_get(SW2_PIN)) flag = 1;
     }
     delay_ms(1000);
-    restore_interrupts(ints);
-    xTaskResumeAll();
     return 0;
 }
 

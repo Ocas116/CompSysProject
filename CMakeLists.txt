@@ -19,9 +19,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(APP_NAME MORSE_PROJ) 
+set(APP_NAME hat_app) 
 
-set(MAIN_TARGET MORSE_PROJ)
+set(MAIN_TARGET hat_app)
 set(FREERTOS_KERNEL_PATH "${CMAKE_SOURCE_DIR}/FreeRTOS-Kernel-main")
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
@@ -41,7 +41,7 @@ set(PICO_BOARD pico_w CACHE STRING "Board type")
 
 include(pico_sdk_import.cmake)
 
-project(MORSE_PROJ C CXX ASM)
+project(hat_app C CXX ASM)
 
 
 pico_sdk_init()
