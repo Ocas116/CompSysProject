@@ -55,6 +55,7 @@ int check_for_eom();
 
 // checks for imu input
 void task_poll_imu(void *pvParameters){
+    int counter = 0;
     for(;;){
         //read IMU input
         char input = read_IMU();
@@ -70,24 +71,29 @@ void task_poll_imu(void *pvParameters){
             memset(tx_buffer, 0, sizeof(tx_buffer));
             tx_buffer_index = 0;
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        if(counter % 10 == 0) xTaskNotifyGive(receive_serial_handle);
+        counter++;
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
 // checks if there's a serial input
+/*
 void task_poll_serial(void *pvParameters){
     for(;;){
         int input_char = getchar_timeout_us(0);
         if(input_char != PICO_ERROR_TIMEOUT){
-            // printf("received char: %c\n", input);
+            printf("received char: %c\n", input_char);
             rx_buffer[rx_buffer_index++] = (char)input_char;
-            xNotifyGive(receive_serial_handle);
+            printf("rx_buffer[%d] %s\n", rx_buffer_index, rx_buffer);
+            xTaskNotifyGive(receive_serial_handle);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
 }
-
+*/
 //receive data task 
+
 void task_receive_serial(void *pvParameters){
     for(;;){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -96,12 +102,15 @@ void task_receive_serial(void *pvParameters){
         char input;
             do {
                 input = (char)getchar_timeout_us(0);
+                if(input == ' ' || input == '.' || input == '-'){
                 rx_buffer[rx_buffer_index++] = input;
-                //printf("received task char: %c\n", input); 
+                printf("Message %s", rx_buffer);
                 led_blink_char(input);
+                printf("rx_buffer[%d] %s\n", rx_buffer_index, rx_buffer);
+                }
             } while(input == ' ' || input == '.' || input == '-');
         if(check_for_eom(rx_buffer, rx_buffer_index)){
-            //printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
+            printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
             for(int i = 0;i < rx_buffer_index;i++){
                 delay_ms(500);
                 led_blink_char(rx_buffer[i]);
@@ -173,7 +182,7 @@ int main() {
     BaseType_t res_d = xTaskCreate(task_receive_serial, "Receive Task", TASK_STACK, NULL, 2, &receive_serial_handle);
     BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
     BaseType_t res_f = xTaskCreate(task_poll_imu, "Poll IMU Task", TASK_STACK, NULL, 2, &poll_imu_handle);
-    BaseType_t res_j = xTaskCreate(task_poll_serial, "Poll Serial Task", TASK_STACK, NULL, 2, &poll_serial_handle);
+    // BaseType_t res_j = xTaskCreate(task_poll_serial, "Poll Serial Task", TASK_STACK, NULL, 2, &poll_serial_handle);
     vTaskStartScheduler();
 }
 

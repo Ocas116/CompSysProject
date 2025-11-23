@@ -40,9 +40,9 @@ typedef struct {
 
 // tasks handles
 TaskHandle_t readIMU_handle = NULL;
-TaskHandle_t writeSerial_handle = NULL;
+TaskHandle_t write_serial_handle = NULL;
 TaskHandle_t stateMachine_handle = NULL;
-TaskHandle_t receive_handle = NULL;
+TaskHandle_t receive_serial_handle = NULL;
 TaskHandle_t calibration_handle = NULL;
 TaskHandle_t poll_handle = NULL;
 
@@ -53,23 +53,26 @@ QueueHandle_t eventQueue;
 int check_for_eom();
 int counter1 = 0;
 void task_poll(void *pvParameters) {
-    for (;;) {
-        //read IMU
+    int counter = 0;
+    for(;;){
+        //read IMU input
         char input = read_IMU();
-        //check if valid
+        //check if input is valid
         if(input != 'X' && input != '\0'){
             tx_buffer[tx_buffer_index++] = input;
             printf("received char: %c\n", input);
-            ProgramEvent programEvent;
-            programEvent.event = IMU_MOVED;
-            xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
-            xTaskNotifyGive(readIMU_handle);
-            vTaskDelay(500);
         }
-        if(counter1 %100 == 0) xTaskNotifyGive(receive_handle); 
-        counter1++;
-    vTaskDelay(10);
-}
+        
+        if(check_for_eom(tx_buffer, tx_buffer_index)){
+            printf("Final %s", tx_buffer);
+            xTaskNotifyGive(write_serial_handle);
+            memset(tx_buffer, 0, sizeof(tx_buffer));
+            tx_buffer_index = 0;
+        }
+        if(counter % 10 == 0) xTaskNotifyGive(receive_serial_handle);
+        counter++;
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
 }
 void task_calibrate(void *pvParameters) {
     for (;;) {
@@ -86,35 +89,34 @@ void calib_handler(uint gpio, uint32_t event_mask){
 
 
 //receive data task 
-void task_receive(void *pvParameters){
+void task_receive_serial(void *pvParameters){
     for(;;){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        char input;
         //printf("In task_receive\n");
         // printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
-        
+        char input;
             do {
                 input = (char)getchar_timeout_us(0);
                 if(input == ' ' || input == '.' || input == '-'){
                 rx_buffer[rx_buffer_index++] = input;
-                //printf("received task char: %c\n", input); 
+                printf("Message %s", rx_buffer);
                 led_blink_char(input);
-                printf("%s\n", rx_buffer);
-                delay_ms(50);
-                if(check_for_eom(rx_buffer, rx_buffer_index)){
-            //printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
+                printf("rx_buffer[%d] %s\n", rx_buffer_index, rx_buffer);
+                }
+            } while(input == ' ' || input == '.' || input == '-');
+        if(check_for_eom(rx_buffer, rx_buffer_index)){
+            printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
             for(int i = 0;i < rx_buffer_index;i++){
                 delay_ms(500);
                 led_blink_char(rx_buffer[i]);
             }
+            xTaskNotifyGive(write_serial_handle);
             memset(rx_buffer, 0, sizeof(rx_buffer));
             rx_buffer_index = 0;
         } 
-                }
-            } while(input == ' ' || input == '.' || input == '-');
-        
     }
 }
+
 // writes message to serial
 void task_writeSerial(void *pvParameters){
     
@@ -187,7 +189,7 @@ void task_stateMachine(void *pvParameters){
                     break;
                 case SEND_MSG:
                     // initiates the serial writing task
-                    xTaskNotifyGive(writeSerial_handle);
+                    xTaskNotifyGive(write_serial_handle);
                     break;
             }
         }
@@ -222,9 +224,9 @@ int main() {
     eventQueue = xQueueCreate(10, sizeof(ProgramEvent));
 
     BaseType_t res_a = xTaskCreate(task_readIMU, "Read IMU Task", TASK_STACK, NULL, 2, &readIMU_handle);
-    BaseType_t res_b = xTaskCreate(task_writeSerial, "Write Serial Task", TASK_STACK, NULL, 1, &writeSerial_handle);
+    BaseType_t res_b = xTaskCreate(task_writeSerial, "Write Serial Task", TASK_STACK, NULL, 1, &write_serial_handle);
     BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
-    BaseType_t res_d = xTaskCreate(task_receive, "Receive Task", TASK_STACK, NULL, 2, &receive_handle);
+    BaseType_t res_d = xTaskCreate(task_receive_serial, "Receive Task", TASK_STACK, NULL, 2, &receive_serial_handle);
     BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
     BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 2, &poll_handle);
     vTaskStartScheduler();

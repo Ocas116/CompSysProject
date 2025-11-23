@@ -57,12 +57,10 @@ int set_calib_IMU(){
        return 1;
     }
     led_blink_dot();
-    printf("calibrating: max vals ax %d,ay %d,az %d\n", (int)(ay_threshold*1000), (int)(ax_threshold*1000), (int)(az_threshold*1000));
-    printf("Read vals az %d,ay %d,az %d\n", (int)(ay*1000), (int)(ax*1000), (int)(az*1000));
     if(ay_threshold < ax) ay_threshold = ay;
     if(ax_threshold < ax) ax_threshold = ax;
     if(az_threshold < az) az_threshold = az;
-    delay_ms(300);
+    delay_ms(500);
     if(gpio_get(SW2_PIN)) flag = 1;
     }
     delay_ms(1000);
