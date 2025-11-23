@@ -13,8 +13,7 @@
 // memory stack size per task
 #define TASK_STACK 512
 
-// pin used for IMU interrupt
-#define IMU_INTERRUPT_PIN 6
+
 
 #define BUFFER_SIZE 256 
 
@@ -55,7 +54,9 @@ int check_for_eom();
 
 void task_poll(void *pvParameters) {
     for (;;) {
+        //read IMU
         char input = read_IMU();
+        //check if valid
         if(input != 'X' && input != '\0'){
             tx_buffer[tx_buffer_index++] = input;
             printf("received char: %c\n", input);
@@ -65,9 +66,10 @@ void task_poll(void *pvParameters) {
             xTaskNotifyGive(readIMU_handle);
             vTaskDelay(500);
         }
+        // check serial inputs
         input = (char)getchar_timeout_us(0);
         if(input == ' ' || input == '.' || input == '-'){
-            printf("received char: %c\n", input);
+            // printf("received char: %c\n", input);
             rx_buffer[rx_buffer_index++] = input;
             ProgramEvent programEvent;
             programEvent.event = RECEIVE;
@@ -83,14 +85,7 @@ void task_calibrate(void *pvParameters) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         //printf("in task calibrate\n");
         gpio_set_irq_enabled(SW2_PIN, GPIO_IRQ_EDGE_RISE, false);
-
-        int res = set_calib_IMU();
-        if (res == 0) {
-            printf("Calibration done!\n");
-        } else {
-            printf("Calibration error!\n");
-        }
-
+        set_calib_IMU();
         gpio_set_irq_enabled(SW2_PIN, GPIO_IRQ_EDGE_RISE, true);
     }
 }
@@ -98,48 +93,30 @@ void calib_handler(uint gpio, uint32_t event_mask){
     xTaskNotifyGive(calibration_handle);
 }
 
-// triggered by voltage change on IMU pin
-// notifies task_readIMU to read the IMU data
-// DO NOT PROCESS STUFF HERE
-void interrupt_IMU(uint gpio, uint32_t events){
-    // flag for telling freeRTOS if there is a higher priority (urgent) task
-    // that has been unblocked and needs to be switched to right after current interrupt
-    // flag value is set by freertos itself
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    // creates event for imu being moved
-    ProgramEvent programEvent;
-    programEvent.event = IMU_MOVED;
-    programEvent.data = 1;
-
-    // sends created event to queue
-    xQueueSendFromISR(eventQueue, &programEvent, &xHigherPriorityTaskWoken);
-
-    // passes the flag to freertos and tells freertos
-    // whether to switch to high priority task
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
 
 //receive data task 
 void task_receive(void *pvParameters){
-    
     for(;;){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         //printf("In task_receive\n");
-        printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
-        char input = (char)getchar_timeout_us(0);
-            while(input == ' ' || input == '.' || input == '-'){
-                printf("received task char: %c\n", input); 
-                led_blink_char(input);
-                input = (char)getchar_timeout_us(0);
+        // printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
+        char input;
+            do {
+                char input = (char)getchar_timeout_us(0);
+                if(input == ' ' || input == '.' || input == '-'){
                 rx_buffer[rx_buffer_index++] = input;
+                //printf("received task char: %c\n", input); 
+                led_blink_char(input);
                 printf("%s\n", rx_buffer);
                 delay_ms(50);
+                }
+            } while(input == ' ' || input == '.' || input == '-');
+        if(check_for_eom(rx_buffer, rx_buffer_index)){
+            //printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
+            for(int i = 0;i < rx_buffer_index;i++){
+                delay_ms(500);
+                led_blink_char(rx_buffer[i]);
             }
-        int truth = check_for_eom(rx_buffer, rx_buffer_index);
-        printf("truth: %d\n", truth);
-        if(truth){
-            printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
             memset(rx_buffer, 0, sizeof(rx_buffer));
             rx_buffer_index = 0;
         } 
@@ -181,8 +158,6 @@ void task_readIMU(void *pvParameters){
     // creates event for symbol being read from IMU
     ProgramEvent programEvent;
     programEvent.event = SYMBOL_DETECTED;
-    // sends symbol as .data
-    programEvent.data = symbol;
     tx_buffer[tx_buffer_index++] = symbol;
     // sends created event to queue
     vTaskDelay(200);
@@ -242,9 +217,6 @@ int main() {
     IMU_init();
     init_red_led();
     led_blink_eom();
-    // interrupt pin configuration
-    gpio_init(IMU_INTERRUPT_PIN);
-    gpio_set_dir(IMU_INTERRUPT_PIN, GPIO_IN); // set pin as input
     // might need to enable pullup resistor
     gpio_init(SW2_PIN);
     gpio_set_dir(SW2_PIN, GPIO_IN); // set pin as input
@@ -262,6 +234,6 @@ int main() {
     BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
     BaseType_t res_d = xTaskCreate(task_receive, "Receive Task", TASK_STACK, NULL, 2, &receive_handle);
     BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
-    BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 3, &poll_handle);
+    BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 2, &poll_handle);
     vTaskStartScheduler();
 }

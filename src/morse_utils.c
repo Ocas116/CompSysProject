@@ -25,7 +25,6 @@ char* morse_to_text(const char* morse_sentence) {
         result[pos++] = letter;
         token = strtok(NULL, " ");
     }
-
     result[pos] = '\0';
     free(buffer);
     return result;
