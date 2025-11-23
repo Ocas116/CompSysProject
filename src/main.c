@@ -52,6 +52,17 @@ QueueHandle_t eventQueue;
 /* Prototypes */
 int check_for_eom();
 
+
+// void draw_screen(char * buffer, int len){
+//     clear_display();
+//     int clear = len;
+//     int row = 0;
+//     for(int i = 0; i < len; i++){
+//         if(i%10 == 0) row += 2;
+//         write_text_xy(0, row, buffer);
+//     }
+// }
+
 void task_poll(void *pvParameters) {
     for (;;) {
         //read IMU
@@ -97,31 +108,28 @@ void calib_handler(uint gpio, uint32_t event_mask){
 //receive data task 
 void task_receive(void *pvParameters){
     for(;;){
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        //printf("In task_receive\n");
-        // printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
-        char input;
-            do {
-                char input = (char)getchar_timeout_us(0);
-                if(input == ' ' || input == '.' || input == '-'){
-                rx_buffer[rx_buffer_index++] = input;
-                //printf("received task char: %c\n", input); 
-                led_blink_char(input);
-                printf("%s\n", rx_buffer);
-                delay_ms(50);
-                }
-            } while(input == ' ' || input == '.' || input == '-');
-        if(check_for_eom(rx_buffer, rx_buffer_index)){
-            //printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
-            for(int i = 0;i < rx_buffer_index;i++){
-                delay_ms(500);
-                led_blink_char(rx_buffer[i]);
+        char input = (char)getchar_timeout_us(0);
+
+        // if nothing received, getchar_timeout_us returns -1 (PICO_ERROR_TIMEOUT)
+        if (input == ' ' || input == '.' || input == '-') {
+
+            // avoid overflow
+            if (rx_buffer_index >= BUFFER_SIZE - 1) {
+                rx_buffer_index = 0;
+                memset(rx_buffer, 0, sizeof(rx_buffer));
             }
-            memset(rx_buffer, 0, sizeof(rx_buffer));
-            rx_buffer_index = 0;
-        } 
+
+            rx_buffer[rx_buffer_index++] = input;
+            rx_buffer[rx_buffer_index] = '\0';  // keep it a C string
+
+            printf("RX: %s\n", rx_buffer);
+            led_blink_char(input);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));   // small pause so we don’t hog CPU
     }
 }
+
 // writes message to serial
 void task_writeSerial(void *pvParameters){
     
@@ -209,12 +217,40 @@ int check_for_eom(char *buffer, int len){
     return 0;
 }
 
+void task_display(void *pvParameters) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    for (;;) {
+        // clear_display();
+
+        int row = 0;
+        int col = 0;
+
+        for (int i = 0; i < rx_buffer_index; i++) {
+
+            // if 15 chars reached, move to next row
+            if (i % 15 == 0 && i != 0) {
+                row += 10;         // move down 10 rows
+                col = 0;
+            }
+
+            char ch[2] = { rx_buffer[i], '\0' };
+            write_text_xy(col, row, ch);
+
+            col += 6;  // move right (6 pixels per char)
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(80));
+    }
+}
+
+
 // setup function
 int main() {
     stdio_init_all();
     init_hat_sdk();
     init_display();
-    IMU_init();
+    // IMU_init();
     init_red_led();
     led_blink_eom();
     // might need to enable pullup resistor
@@ -229,11 +265,14 @@ int main() {
 
     eventQueue = xQueueCreate(10, sizeof(ProgramEvent));
 
-    BaseType_t res_a = xTaskCreate(task_readIMU, "Read IMU Task", TASK_STACK, NULL, 2, &readIMU_handle);
+    // BaseType_t res_a = xTaskCreate(task_readIMU, "Read IMU Task", TASK_STACK, NULL, 2, &readIMU_handle);
     BaseType_t res_b = xTaskCreate(task_writeSerial, "Write Serial Task", TASK_STACK, NULL, 1, &writeSerial_handle);
     BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
     BaseType_t res_d = xTaskCreate(task_receive, "Receive Task", TASK_STACK, NULL, 2, &receive_handle);
     BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
-    BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 2, &poll_handle);
+    // BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 2, &poll_handle);
+
+    BaseType_t res_display = xTaskCreate(task_display, "Display Task", TASK_STACK, NULL, 1, NULL);
+
     vTaskStartScheduler();
 }
