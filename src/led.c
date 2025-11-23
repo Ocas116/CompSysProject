@@ -43,9 +43,15 @@ void led_blink_eom(){
     gpio_put(RED_LED_PIN, 1);
     delay_ms(120);
     gpio_put(RED_LED_PIN, 0);
+    delay_ms(TIME_UNIT);
 }
 void led_blink_success(){
+    for(int i=0;i<50;i++){
     gpio_put(RED_LED_PIN, 1);
-    delay_ms(200);
+    delay_ms(20);
     gpio_put(RED_LED_PIN, 0);
+    delay_ms(20);
+    }
+    delay_ms(TIME_UNIT);
+    
 }

@@ -65,8 +65,9 @@ void task_poll_imu(void *pvParameters){
         if(imu_char != 'X' && imu_char != '\0'){
             ProgramEvent event = {EVENT_SYMBOL_IMU_RECEIVED, imu_char};
             xQueueSend(eventQueue, &event, portMAX_DELAY);
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
  
@@ -105,7 +106,6 @@ void calib_handler(uint gpio, uint32_t event_mask){
 void task_write_serial(void *pvParameters){
     for(;;){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        //printf("In task_write\n");
         int timeout = 0;
         while (!stdio_usb_connected() && (timeout < 50)) {
         timeout++;
@@ -114,7 +114,7 @@ void task_write_serial(void *pvParameters){
         printf("%s", tx_buffer);
         memset(tx_buffer, 0, sizeof(tx_buffer));
         tx_buffer_index = 0;
-        led_blink_eom();
+        led_blink_success();
     }
 }
  
@@ -163,8 +163,8 @@ void task_stateMachine(void *pvParameters){
                         char serial_char = event.data;
                         do{
                             led_blink_char(serial_char);
-                            // clear_display();
-                            // write_text(&serial_char);
+                            clear_display();
+                            write_text(&serial_char);
                             rx_buffer[rx_buffer_index++] = serial_char;
                             serial_char = (char)getchar_timeout_us(0);
                         } while(serial_char == ' ' || serial_char == '.' || serial_char == '-');
@@ -173,6 +173,10 @@ void task_stateMachine(void *pvParameters){
                         if(check_for_eom(rx_buffer, rx_buffer_index)){
                             // whatever we need to do after eom for serial
                             state = STATE_IDLE;
+                            led_blink_success();
+                            for(int i = 0; i < rx_buffer_index;i++){
+                                led_blink_char(rx_buffer[i]);
+                            }
                             // resets rx buffer
                             memset(rx_buffer, 0, sizeof(rx_buffer));
                             rx_buffer_index = 0;
@@ -186,8 +190,8 @@ void task_stateMachine(void *pvParameters){
                         char serial_char = event.data;
                         do{
                             led_blink_char(serial_char);
-                            // clear_display();
-                            // write_text(&serial_char);
+                            clear_display();
+                            write_text(&serial_char);
                             rx_buffer[rx_buffer_index++] = serial_char;
                             serial_char = (char)getchar_timeout_us(0);
                         } while(serial_char == ' ' || serial_char == '.' || serial_char == '-');
@@ -196,7 +200,10 @@ void task_stateMachine(void *pvParameters){
                         if(check_for_eom(rx_buffer, rx_buffer_index)){
                             // whatever we need to do after eom for serial
                             state = STATE_IDLE;
- 
+                            led_blink_success();
+                            for(int i = 0; i < rx_buffer_index;i++){
+                                led_blink_char(rx_buffer[i]);
+                            }
                             // resets rx buffer
                             memset(rx_buffer, 0, sizeof(rx_buffer));
                             rx_buffer_index = 0;

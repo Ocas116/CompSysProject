@@ -45,18 +45,20 @@ void test_write(){
 int set_calib_IMU(){
     int flag = 0;
     float ax, ay, az, gx, gy, gz, t;
-    ax_threshold = 0.5, ay_threshold = 0.5, az_threshold = 1.5;
+    ax_threshold = 0.1, ay_threshold = 0.1, az_threshold = 0.1;
     delay_ms(1000);
     while(!flag){
         if(0 > ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t)){
-       printf("Error reading sensor data");
+       led_blink_success();
+       led_blink_success();
+       led_blink_success();
        return 1;
     }
     led_blink_dot();
     if(ay_threshold < ax) ay_threshold = ay;
     if(ax_threshold < ax) ax_threshold = ax;
     if(az_threshold < az) az_threshold = az;
-    delay_ms(100);
+    delay_ms(10);
     if(gpio_get(SW2_PIN)) flag = 1;
     }
     delay_ms(1000);
@@ -67,7 +69,9 @@ char read_IMU(){
     float ax, ay, az, gx, gy, gz, t;
     //printf("Successful initialization\n");
     if(0 > ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t)){
-       printf("Error reading sensor data");
+       led_blink_success();
+       led_blink_success();
+       led_blink_success();
         return 'X'; 
     }
     if(ay > ay_threshold) return '.';
@@ -77,12 +81,13 @@ char read_IMU(){
     }
 
 void IMU_init(){
-    printf("Initializing IMU\n");
     // load_calib_IMU();
     gpio_set_dir(ICM42670_INT, GPIO_IN);
     int ret = init_ICM42670();
     if(0 > ret){
-        printf("Error intializing %d", ret);
+        led_blink_success();
+        led_blink_success();
+        led_blink_success();
     } 
     ICM42670_start_with_default_values();
     /*
@@ -99,7 +104,6 @@ void IMU_init(){
     */
 }
 void IMU_LP_init(){
-    printf("Configuring\n");
     /**
      * Find control registers from this pdf 
      * https://invensense.tdk.com/wp-content/uploads/2021/07/DS-000451-ICM-42670-P-v1.0.pdf
