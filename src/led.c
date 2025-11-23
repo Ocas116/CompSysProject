@@ -6,6 +6,7 @@
 #include <tkjhat/sdk.h>
 #include "led.h"
 
+#define TIME_UNIT 100
 void led_blink_char(char input){
     if(input == ' ') led_blink_space();
     if(input == '.') led_blink_dot();
@@ -13,12 +14,12 @@ void led_blink_char(char input){
 }
 void led_blink_dot(){
     gpio_put(RED_LED_PIN, 1);
-    delay_ms(60);
+    delay_ms(TIME_UNIT);
     gpio_put(RED_LED_PIN, 0);
 }
 void led_blink_dash(){
     gpio_put(RED_LED_PIN, 1);
-    delay_ms(180);
+    delay_ms(TIME_UNIT * 3);
     gpio_put(RED_LED_PIN, 0);
 }
 void led_blink_space(){

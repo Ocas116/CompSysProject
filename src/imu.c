@@ -23,7 +23,6 @@ typedef struct {
     float a, b, c;
 } calib_vals;
 
-void __not_in_flash_func(write_calibration_to_flash)(calib_vals *data);
 
 void load_calib_IMU(){
     const calib_vals *data = (const calib_vals *)(XIP_BASE + CALIB_VALS_OFFSET);

@@ -51,7 +51,7 @@ QueueHandle_t eventQueue;
 
 /* Prototypes */
 int check_for_eom();
-
+int counter1 = 0;
 void task_poll(void *pvParameters) {
     for (;;) {
         //read IMU
@@ -66,17 +66,8 @@ void task_poll(void *pvParameters) {
             xTaskNotifyGive(readIMU_handle);
             vTaskDelay(500);
         }
-        // check serial inputs
-        input = (char)getchar_timeout_us(0);
-        if(input == ' ' || input == '.' || input == '-'){
-            // printf("received char: %c\n", input);
-            rx_buffer[rx_buffer_index++] = input;
-            ProgramEvent programEvent;
-            programEvent.event = RECEIVE;
-            xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
-            xTaskNotifyGive(receive_handle); 
-            vTaskDelay(500);
-    }
+        if(counter1 %100 == 0) xTaskNotifyGive(receive_handle); 
+        counter1++;
     vTaskDelay(10);
 }
 }
@@ -98,20 +89,19 @@ void calib_handler(uint gpio, uint32_t event_mask){
 void task_receive(void *pvParameters){
     for(;;){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        char input;
         //printf("In task_receive\n");
         // printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
-        char input;
+        
             do {
-                char input = (char)getchar_timeout_us(0);
+                input = (char)getchar_timeout_us(0);
                 if(input == ' ' || input == '.' || input == '-'){
                 rx_buffer[rx_buffer_index++] = input;
                 //printf("received task char: %c\n", input); 
                 led_blink_char(input);
                 printf("%s\n", rx_buffer);
                 delay_ms(50);
-                }
-            } while(input == ' ' || input == '.' || input == '-');
-        if(check_for_eom(rx_buffer, rx_buffer_index)){
+                if(check_for_eom(rx_buffer, rx_buffer_index)){
             //printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
             for(int i = 0;i < rx_buffer_index;i++){
                 delay_ms(500);
@@ -120,6 +110,9 @@ void task_receive(void *pvParameters){
             memset(rx_buffer, 0, sizeof(rx_buffer));
             rx_buffer_index = 0;
         } 
+                }
+            } while(input == ' ' || input == '.' || input == '-');
+        
     }
 }
 // writes message to serial
@@ -142,7 +135,6 @@ void task_writeSerial(void *pvParameters){
 // reads IMU data
 void task_readIMU(void *pvParameters){
 
-    
     for(;;){
     // tasks waits until notified
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);

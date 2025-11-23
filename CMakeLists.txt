@@ -82,6 +82,6 @@ target_include_directories(${MAIN_TARGET} PRIVATE
 
 
 pico_enable_stdio_usb(${MAIN_TARGET} 1)
-pico_enable_stdio_uart(${MAIN_TARGET} 0)
+pico_enable_stdio_uart(${MAIN_TARGET} 1)
 
 pico_add_extra_outputs(${MAIN_TARGET})
