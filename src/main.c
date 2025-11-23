@@ -1,132 +1,267 @@
 #include <stdio.h>
 #include <string.h>
-#include "tkjhat/sdk.h"
 #include <FreeRTOS.h>
 #include <pico/stdlib.h>
-#include <queue.h>
 #include <task.h>
-#include <pico/cyw43_arch.h>
+#include <queue.h>
+#include "pico/stdlib.h"
+#include "hardware/gpio.h"
+#include "tkjhat/sdk.h"
 #include "imu.h"
-#include "wifi.h"
-#include <time.h>
+#include "led.h"
+#include "morse_utils.h"
+// memory stack size per task
+#define TASK_STACK 512
+
+// pin used for IMU interrupt
+#define IMU_INTERRUPT_PIN 6
 
 #define BUFFER_SIZE 256 
 
 static char tx_buffer[BUFFER_SIZE];
+static int tx_buffer_index = 0;
 static char rx_buffer[BUFFER_SIZE];
+static int rx_buffer_index = 0;
+// Possible Event Types
+typedef enum {
+    IMU_MOVED,
+    SEND_MSG,
+    SYMBOL_DETECTED,
+    RECEIVE,
+    CALIBRATING,
+    POLL
+} EventType;
 
-enum state { 
-    idle,
-    reading,
-    transmitting,
-    receiving,
-    connecting,
-};
-enum state programState = idle;
+// Event Structure
+typedef struct {
+    EventType event;
+    char data;   // any kind of data that we might want to pass with the event if any
+} ProgramEvent;
 
 
-int flag = 0;
+// tasks handles
+TaskHandle_t readIMU_handle = NULL;
+TaskHandle_t writeSerial_handle = NULL;
+TaskHandle_t stateMachine_handle = NULL;
+TaskHandle_t receive_handle = NULL;
+TaskHandle_t calibration_handle = NULL;
+TaskHandle_t poll_handle = NULL;
 
+// events queue handle
+QueueHandle_t eventQueue;
 
-void reading_input(char first){
-    int flag = 0;
-    int i = 0;
-    tx_buffer[i++] = first;
-    while(flag < 3){
+/* Prototypes */
+int check_for_eom();
+
+void task_poll(void *pvParameters) {
+    for (;;) {
         char input = read_IMU();
-        if(input) tx_buffer[i++] = input;
-        else continue;
-        if(input == ' ') flag++;
-        else flag = 0;
-    }
-    //if sending to state machine
-    printf("%s", tx_buffer);
-}
-
-void idle_state(){
-    // if(wifi_connect()) printf("connection failed \n");
-    while(1){
-
-        if(gpio_get(SW2_PIN)) set_calib_IMU();
-
-        char input = read_IMU();
-        if(input){
-            programState = reading;
-            reading_input(input);
+        if(input != 'X' && input != '\0'){
+            tx_buffer[tx_buffer_index++] = input;
+            printf("received char: %c\n", input);
+            ProgramEvent programEvent;
+            programEvent.event = IMU_MOVED;
+            xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
+            xTaskNotifyGive(readIMU_handle);
+            vTaskDelay(500);
         }
         input = (char)getchar_timeout_us(0);
-        if(input){
-            programState = receiving;
-            int i = 0;
-            while(input){
-                rx_buffer[i] = input;
-                i++;
+        if(input == ' ' || input == '.' || input == '-'){
+            printf("received char: %c\n", input);
+            rx_buffer[rx_buffer_index++] = input;
+            ProgramEvent programEvent;
+            programEvent.event = RECEIVE;
+            xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
+            xTaskNotifyGive(receive_handle); 
+            vTaskDelay(500);
+    }
+    vTaskDelay(10);
+}
+}
+void task_calibrate(void *pvParameters) {
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        //printf("in task calibrate\n");
+        gpio_set_irq_enabled(SW2_PIN, GPIO_IRQ_EDGE_RISE, false);
+
+        int res = set_calib_IMU();
+        if (res == 0) {
+            printf("Calibration done!\n");
+        } else {
+            printf("Calibration error!\n");
+        }
+
+        gpio_set_irq_enabled(SW2_PIN, GPIO_IRQ_EDGE_RISE, true);
+    }
+}
+void calib_handler(uint gpio, uint32_t event_mask){
+    xTaskNotifyGive(calibration_handle);
+}
+
+// triggered by voltage change on IMU pin
+// notifies task_readIMU to read the IMU data
+// DO NOT PROCESS STUFF HERE
+void interrupt_IMU(uint gpio, uint32_t events){
+    // flag for telling freeRTOS if there is a higher priority (urgent) task
+    // that has been unblocked and needs to be switched to right after current interrupt
+    // flag value is set by freertos itself
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // creates event for imu being moved
+    ProgramEvent programEvent;
+    programEvent.event = IMU_MOVED;
+    programEvent.data = 1;
+
+    // sends created event to queue
+    xQueueSendFromISR(eventQueue, &programEvent, &xHigherPriorityTaskWoken);
+
+    // passes the flag to freertos and tells freertos
+    // whether to switch to high priority task
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+//receive data task 
+void task_receive(void *pvParameters){
+    
+    for(;;){
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        //printf("In task_receive\n");
+        printf("rx_buffer[%d] %s\n",rx_buffer_index ,  rx_buffer);
+        char input = (char)getchar_timeout_us(0);
+            while(input == ' ' || input == '.' || input == '-'){
+                printf("received task char: %c\n", input); 
+                led_blink_char(input);
                 input = (char)getchar_timeout_us(0);
+                rx_buffer[rx_buffer_index++] = input;
+                printf("%s\n", rx_buffer);
+                delay_ms(50);
+            }
+        int truth = check_for_eom(rx_buffer, rx_buffer_index);
+        printf("truth: %d\n", truth);
+        if(truth){
+            printf("Final buffer: %s\n in text %s", rx_buffer, morse_to_text(rx_buffer));
+            memset(rx_buffer, 0, sizeof(rx_buffer));
+            rx_buffer_index = 0;
+        } 
+    }
+}
+// writes message to serial
+void task_writeSerial(void *pvParameters){
+    
+    for(;;){
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        //printf("In task_write\n");
+        int timeout = 0;
+        while (!stdio_usb_connected() && (timeout < 50)) {
+        timeout++;
+        sleep_ms(100);
+        }
+        printf("%s", tx_buffer);
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+        tx_buffer_index = 0;
+    }
+}
+
+// reads IMU data
+void task_readIMU(void *pvParameters){
+
+    
+    for(;;){
+    // tasks waits until notified
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if(check_for_eom(tx_buffer, tx_buffer_index)){
+        printf("Final %s", tx_buffer);
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+        tx_buffer_index = 0;
+    }
+    vTaskDelay(200);
+    char symbol = read_IMU();
+    if(symbol == 'X' || symbol == '\0') continue;
+    printf("char read: %c\n", symbol);
+    // creates event for symbol being read from IMU
+    ProgramEvent programEvent;
+    programEvent.event = SYMBOL_DETECTED;
+    // sends symbol as .data
+    programEvent.data = symbol;
+    tx_buffer[tx_buffer_index++] = symbol;
+    // sends created event to queue
+    vTaskDelay(200);
+    xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
+    }
+}
+
+// processes events from queue
+void task_stateMachine(void *pvParameters){
+    ProgramEvent event;
+    
+    for(;;){
+        // printf("In task_state\n");
+        if(xQueueReceive(eventQueue, &event, portMAX_DELAY)){
+            // printf("eventnum: %d\n", event.event);
+            switch(event.event){
+                case IMU_MOVED:
+                    xTaskNotifyGive(readIMU_handle);
+                    break;
+                case SYMBOL_DETECTED:
+                    printf("tx_buffer[%d] %s\n", tx_buffer_index, tx_buffer);
+                    // append symbol (event.data) to buffer
+                    // check for End of Message (3 spaces)
+                    if(check_for_eom(tx_buffer, tx_buffer_index))
+                    {
+
+                            ProgramEvent programEvent;
+                            programEvent.event = SEND_MSG;
+                            // sends symbol as .data
+                            programEvent.data = '\0';
+
+                            // sends created event to queue
+                            xQueueSend(eventQueue, &programEvent, portMAX_DELAY);
+                    }
+                    break;
+                case SEND_MSG:
+                    // initiates the serial writing task
+                    xTaskNotifyGive(writeSerial_handle);
+                    break;
             }
         }
     }
-    }
-
-int pico_led_init(void) {
-    return cyw43_arch_init();
 }
 
-// Turn the led on or off
-void pico_set_led(bool led_on) {
-    // Ask the wifi "driver" to set the GPIO on or off
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
+// checks if received End Of Message sequence from user input
+int check_for_eom(char *buffer, int len){
+    if(len < 4) return 0;
+    if((buffer[len-1] == ' ') && (buffer[len-2] == ' ') && (buffer[len-3] == ' ')) return 1;
+    return 0;
 }
-int main(){
+
+// setup function
+int main() {
     stdio_init_all();
     init_hat_sdk();
-    pico_led_init();
-    int flagss = 0;
-    int inputs = 2;
-    float ax = 0, ay = 0, az = 0 , gx, gy, gz, t;
-    int res = init_ICM42670();
-    if(res < 0){
-        printf("Error intializing error: %d", res);
-        return 1;
-    }
-     if (ICM42670_start_with_default_values() != 0){
-            printf("ICM-42670P could not initialize accelerometer or gyroscope");
-        }
-    while(1) 
-    {
-    tx_buffer[0] = 'M';
-    tx_buffer[1] = 'C';
-        int inputs = 2;
-        int flagss = 0;
-    while(flagss < 3){
-    if(gpio_get(SW2_PIN)){
-        set_calib_IMU();
-    }
-    /*
-    if(flagss % 10 == 0){
-        if(0 > ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t)){
-       printf("Error reading sensor data");
-    }
-    printf("x: %d,y: %d,z: %d\n", (int)(ax*1000), (int)(ay*1000), (int)(az*1000));
-    }
-    */
-    //  printf("x: %d,y: %d,z: %d\n", (int)(ax*1000), (int)(ay*1000), (int)(az*1000));
-    char chart = read_IMU();
-    if(chart != 'X') {
-        tx_buffer[inputs++] = chart;
-        printf("%c", chart);
-        cyw43_delay_ms(200);
-        if(chart == '_') flagss++;
-        else flagss = 0;
+    init_display();
+    IMU_init();
+    init_red_led();
+    led_blink_eom();
+    // interrupt pin configuration
+    gpio_init(IMU_INTERRUPT_PIN);
+    gpio_set_dir(IMU_INTERRUPT_PIN, GPIO_IN); // set pin as input
+    // might need to enable pullup resistor
+    gpio_init(SW2_PIN);
+    gpio_set_dir(SW2_PIN, GPIO_IN); // set pin as input
+    // ties pin interrupt to a callback function
+    gpio_set_irq_enabled_with_callback(SW2_PIN, 
+        GPIO_IRQ_EDGE_RISE , // which events trigger the interrupt
+        true,
+        calib_handler // pointer to isr function
+    );
 
-    }
-    //printf("readIMU() val: %c, %d\n", tx_buffer[inputs-1], gpio_get(SW2_PIN));
-    //printf("Buffer[%d] %s\n", inputs, tx_buffer);
-    cyw43_delay_ms(10);
-}
-    printf("\nBuffer[%d] %s\n", inputs, tx_buffer);
-    for(int i=0; i< BUFFER_SIZE; i++) tx_buffer[i] = '\0';
-    delay_ms(5000);
-}
-    idle_state();
-    return 0;
+    eventQueue = xQueueCreate(10, sizeof(ProgramEvent));
+
+    BaseType_t res_a = xTaskCreate(task_readIMU, "Read IMU Task", TASK_STACK, NULL, 2, &readIMU_handle);
+    BaseType_t res_b = xTaskCreate(task_writeSerial, "Write Serial Task", TASK_STACK, NULL, 1, &writeSerial_handle);
+    BaseType_t res_c = xTaskCreate(task_stateMachine, "State Machine Task", TASK_STACK, NULL, 2, &stateMachine_handle);
+    BaseType_t res_d = xTaskCreate(task_receive, "Receive Task", TASK_STACK, NULL, 2, &receive_handle);
+    BaseType_t res_e = xTaskCreate(task_calibrate, "Calibration Task", TASK_STACK, NULL, 2, &calibration_handle);
+    BaseType_t res_f = xTaskCreate(task_poll, "Poll Task", TASK_STACK, NULL, 3, &poll_handle);
+    vTaskStartScheduler();
 }

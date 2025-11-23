@@ -9,14 +9,14 @@
 #include <task.h>
 #include <pico/cyw43_arch.h>
 #include <pico/flash.h>
-
+#include "led.h"
 #include <tkjhat/sdk.h>
 #include "imu.h"
 
 
 #define CALIB_VALS_OFFSET (1560 * 1024)
 
-static float ax_threshold = 1.0, ay_threshold = 1.0, az_threshold = 1.1;
+static float ax_threshold = 0.5, ay_threshold = 0.5, az_threshold = 1.5;
 
 
 typedef struct {
@@ -44,21 +44,32 @@ void test_write(){
 }
 
 int set_calib_IMU(){
+    vTaskSuspendAll();
+    uint32_t ints = save_and_disable_interrupts();
     int flag = 0;
     float ax, ay, az, gx, gy, gz, t;
+    ax_threshold = 0.5, ay_threshold = 0.5, az_threshold = 1.5;
     delay_ms(1000);
     while(!flag){
         if(0 > ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t)){
-       //printf("Error reading sensor data");
+       printf("Error reading sensor data");
+       restore_interrupts(ints);
+       xTaskResumeAll();
        return 1;
     }
-    printf("calibrating... \n max vals min %d,max %d,az %d\n", (int)(ay_threshold*1000), (int)(ax_threshold*1000), (int)(az_threshold*1000));
+    led_blink_dot();
+    printf("calibrating: max vals ax %d,ay %d,az %d\n", (int)(ay_threshold*1000), (int)(ax_threshold*1000), (int)(az_threshold*1000));
+    printf("Read vals az %d,ay %d,az %d\n", (int)(ay*1000), (int)(ax*1000), (int)(az*1000));
     if(ay_threshold < ax) ay_threshold = ay;
     if(ax_threshold < ax) ax_threshold = ax;
     if(az_threshold < az) az_threshold = az;
-    if(gpio_get(SW2_PIN))
-    flag = 1;
+    delay_ms(300);
+    if(gpio_get(SW2_PIN)) flag = 1;
     }
+    delay_ms(1000);
+    restore_interrupts(ints);
+    xTaskResumeAll();
+    return 0;
 }
 
 char read_IMU(){
@@ -68,25 +79,12 @@ char read_IMU(){
        printf("Error reading sensor data");
         return 'X'; 
     }
-    if(ay > ay_threshold || ax > ax_threshold || az > az_threshold)
-        return parseIMU(ax, ay, az);
+    if(ay > ay_threshold) return '.';
+    if(ax > ax_threshold) return '-';
+    if(az > az_threshold) return ' ';
     return 'X';
     }
 
-char parseIMU(float ax, float ay, float  az){
-    if(ax > ay && ax > az) return '.';
-    // acceleration in y = -
-    else if(ay > az) return '-';
-    // acceleration in z = space
-    else return ' ';
-
-    /*
-    if(az < -abs(ax)) return '_';
-    if(ax < 0) return '.';
-    return '-';
-    */
-    
-}
 void IMU_init(){
     printf("Initializing IMU\n");
     // load_calib_IMU();
@@ -95,7 +93,8 @@ void IMU_init(){
     if(0 > ret){
         printf("Error intializing %d", ret);
     } 
-    delay_ms(50);
+    ICM42670_start_with_default_values();
+    /*
     IMU_LP_init();
     
     printf("Setting up interrupt\n");
@@ -105,8 +104,8 @@ void IMU_init(){
     GPIO_IRQ_EDGE_RISE,
     true,
     motion_handler);
-    
-    printf("Interrupt set up\n");
+
+    */
 }
 void IMU_LP_init(){
     printf("Configuring\n");

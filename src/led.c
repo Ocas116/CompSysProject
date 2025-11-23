@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pico/stdlib.h>
+#include <hardware/gpio.h>
+#include "imu.h"
+#include <tkjhat/sdk.h>
+#include "led.h"
+
+void led_blink_char(char input){
+    if(input == ' ') led_blink_space();
+    if(input == '.') led_blink_dot();
+    if(input == '-') led_blink_dash(); 
+}
+void led_blink_dot(){
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(60);
+    gpio_put(RED_LED_PIN, 0);
+}
+void led_blink_dash(){
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(180);
+    gpio_put(RED_LED_PIN, 0);
+}
+void led_blink_space(){
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(30);
+    gpio_put(RED_LED_PIN, 0);
+    delay_ms(30);
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(30);
+    gpio_put(RED_LED_PIN, 0);
+}
+void led_blink_eom(){
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(120);
+    gpio_put(RED_LED_PIN, 0);
+    delay_ms(120);
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(120);
+    gpio_put(RED_LED_PIN, 0);
+}
+void led_blink_success(){
+    gpio_put(RED_LED_PIN, 1);
+    delay_ms(200);
+    gpio_put(RED_LED_PIN, 0);
+}

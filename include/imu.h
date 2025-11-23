@@ -55,18 +55,6 @@ int set_calib_IMU();
  */
 char read_IMU();
 
-/**
- * @brief 
- * Parses the IMU inputs for the strongest acceleration direction
- * @param ax
- * float value for the maxmimum accelerator value for x
- * @param az
- * float value for the maxmimum accelerator value for z
- * 
- * @return 
- * Char depending on the strongest input
- */
-char parseIMU(float ax, float ay, float  az);
 
 void motion_handler(uint gpio, uint32_t events);
 void IMU_init();

@@ -5,5 +5,5 @@
  * @brief
  * @return
  */
-static inline int wifi_connect();
+int wifi_connect();
 #endif /* wifi.h */
